@@ -1,0 +1,49 @@
+name: Windows RDP using Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up user and enable RDP
+        shell: powershell
+        run: |
+          echo "Setting password for 'runneradmin' account..."
+          net user runneradmin "Unixs@rtmedi4" /active:yes
+          
+          echo "Enabling RDP connections in the registry..."
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          
+          echo "Enabling Remote Desktop firewall rule..."
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          echo "RDP setup complete."
+
+      # --- METODE INSTALASI FINAL MENGGUNAKAN CHOCOLATEY ---
+      - name: Install and Run Tailscale (Chocolatey Method)
+        run: |
+          echo "Installing Tailscale using Chocolatey package manager..."
+          choco install tailscale -y --force
+          
+          echo "Connecting Tailscale to network..."
+          # Lokasi instalasi dari choco biasanya sama
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-windows
+
+      - name: Show Tailscale IP Address
+        run: |
+          echo "Waiting for Tailscale IP address..."
+          Start-Sleep -Seconds 10
+          echo "Tailscale IP Address for this machine is:"
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+
+      - name: Keep Runner Alive
+        run: |
+          echo "RDP is ready. The workflow will stay alive. Use the Tailscale IP from the previous step to connect."
+          Start-Sleep -Seconds 43000
